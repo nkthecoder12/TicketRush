@@ -1,0 +1,30 @@
+{
+  "name": "ticketrush",
+  "version": "1.0.0",
+  "description": "A high concurrency ticket booking backend designed to prevent \"Double Booking\" and handle payment failures, retries and asynchronous events reliably.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nkthecoder12/TicketRush.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/nkthecoder12/TicketRush/issues"
+  },
+  "homepage": "https://github.com/nkthecoder12/TicketRush#readme",
+  "dependencies": {
+    "dotenv": "^18.0.6",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "eslint": "^10.12.0",
+    "nodemon": "^3.1.14",
+    "prettier": "^3.9.9"
+  }
+}
