@@ -2,8 +2,11 @@
   "name": "ticketrush",
   "version": "1.0.0",
   "description": "A high concurrency ticket booking backend designed to prevent \"Double Booking\" and handle payment failures, retries and asynchronous events reliably.",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "watch": "node --watch src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -22,6 +25,7 @@
     "bcryptjs": "^3.0.3",
     "dotenv": "^18.0.7",
     "express": "^5.3.0",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1"
   },
   "devDependencies": {

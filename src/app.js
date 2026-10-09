@@ -1,13 +1,20 @@
-import express from "express"
 
-const app=express();
+import express from "express";
+import authRouter from "../routes/authRoutes.js"
 
-app.use(express.json())
+const app = express();
 
-app.get("/health",(req,res)=>{
-    return res.status(200).json({
-        Message:"Health check success"
-    })
-})
+// Middleware
+app.use(express.json());
+
+// Health check
+app.get("/health", (req, res) => {
+  return res.status(200).json({
+    message: "Health check success",
+  });
+});
+
+// Auth routes
+app.use("/api", authRouter);
 
 export default app;
