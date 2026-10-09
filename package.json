@@ -19,8 +19,10 @@
   },
   "homepage": "https://github.com/nkthecoder12/TicketRush#readme",
   "dependencies": {
-    "dotenv": "^18.0.6",
-    "express": "^5.2.1"
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.7",
+    "express": "^5.3.0",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "eslint": "^10.12.0",
