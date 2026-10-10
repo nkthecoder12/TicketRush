@@ -1,6 +1,7 @@
 import pool from  "../config/db.js"
 import bcrypt from "bcryptjs"
 import {createAccessToken,createRefreshToken} from "../utils/jwt.js"
+import jwt from "jsonwebtoken"
 export const loginService =async (email,password) => {
    
     const result=await pool.query(
@@ -29,7 +30,6 @@ export const loginService =async (email,password) => {
     const accessToken=createAccessToken(userData.id);
     const refreshToken=createRefreshToken(userData.id);
 
-
     const data={
         id:userData.id,
         name:userData.name,
@@ -47,3 +47,31 @@ export const loginService =async (email,password) => {
 
 
 }
+
+
+
+export const registerService = async (name, email, password) => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const existingUser = await pool.query(
+    "SELECT id FROM users WHERE email = $1",
+    [normalizedEmail]
+  );
+
+  if (existingUser.rows.length > 0) {
+    const error = new Error("User already registered");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  const createUser = await pool.query(
+    `INSERT INTO users (email, name, password_hash)
+     VALUES ($1, $2, $3)
+     RETURNING id, email, name`,
+    [normalizedEmail, name.trim(), hashedPassword]
+  );
+
+  return createUser.rows[0];
+};

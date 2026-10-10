@@ -1,5 +1,5 @@
 
-import { loginService } from "../services/auth.service.js";
+import { loginService,registerService } from "../services/auth.service.js";
 
 export const login = async (req, res, next) => {
   try {
@@ -35,3 +35,28 @@ export const login = async (req, res, next) => {
     next(error);
   }
 };
+
+
+export const register=async (req,res) => {
+  try {
+    
+    const {name,email,password}=req.body;
+
+    if(!name || !email || ! password){
+      return res.status(401).json({message:"invalid credentials"});
+    }
+
+    const result=await registerService(name,email,password);
+
+    return res.status(201).json({
+      id:result.id,
+      name:result.name,
+      email:result.email,
+
+    })
+  
+
+  } catch (error) {
+    next(error)
+  }
+}
