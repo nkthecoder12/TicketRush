@@ -37,26 +37,25 @@ export const login = async (req, res, next) => {
 };
 
 
-export const register=async (req,res) => {
+export const register = async (req, res, next) => {
   try {
-    
-    const {name,email,password}=req.body;
+    const { name, email, password } = req.body;
 
-    if(!name || !email || ! password){
-      return res.status(401).json({message:"invalid credentials"});
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        message: "Name, email, and password are required"
+      });
     }
 
-    const result=await registerService(name,email,password);
+    const result = await registerService(name, email, password);
 
     return res.status(201).json({
-      id:result.id,
-      name:result.name,
-      email:result.email,
-
-    })
-  
+      id: result.id,
+      name: result.name,
+      email: result.email
+    });
 
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
