@@ -1,6 +1,7 @@
 
 import express from "express";
 import authRouter from "../routes/authRoutes.js"
+import eventRouter from "../routes/eventRoutes.js"
 import { authenticateUser } from "../middleware/authMiddleware.js";
 import "dotenv/config"; 
 
@@ -28,5 +29,9 @@ app.get("/me", authenticateUser, (req, res) => {
 // Auth routes
 app.use("/api", authRouter);
 
+
+//Event routes
+
+app.use("/api",eventRouter)
 
 export default app;
