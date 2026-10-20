@@ -103,3 +103,69 @@ export const getAllEventsService = async (page, limit, sort) => {
     pagination
   };
 };
+
+export const getEventsByIdService=async (eventId) => {
+    
+  
+
+  const query= 'SELECT title, description, category, venue,start_date, end_date, price FROM events WHERE id=$1'
+
+  const result=await pool.query(query,[eventId]  )
+
+   if (result.rowCount === 0) {
+    throw new Error("Event not found");
+  }
+   const data=result.rows[0];
+
+  return data;
+
+
+
+}
+
+export const updateEventsService=async (eventData,eventId) => {
+  
+ const {title,description,start_date,end_date,price,venue,category,status}=eventData;
+
+  const query=`UPDATE events
+SET
+    title = COALESCE($1, title),
+    description = COALESCE($2, description),
+    category = COALESCE($3, category),
+    venue = COALESCE($4, venue),
+    start_date = COALESCE($5, start_date),
+    end_date = COALESCE($6, end_date),
+    price = COALESCE($7, price),
+    status=COALESCE($8,status)
+WHERE id = $9
+RETURNING *;`
+
+const data=  [
+      title ?? null,
+      description ?? null,
+      category ?? null,
+      venue ?? null,
+      start_date ?? null,
+      end_date ?? null,
+      price ?? null,
+      status ?? null,
+      eventId,
+    ]
+
+
+    const result=await pool.query(query,data);
+
+    if (result.rowCount === 0) {
+    throw new Error("Event not found");
+  }
+
+  return result.rows[0];
+
+
+
+}
+
+export const cancelEvent=async (data) => {
+
+  
+}

@@ -1,4 +1,4 @@
-import {createEventService,getAllEventsService} from "../services/events.service.js"
+import {createEventService,getAllEventsService,getEventsByIdService,updateEventsService} from "../services/events.service.js"
 import { validateCreateEvent } from "../validations/event.validation.js";
 
 
@@ -79,4 +79,65 @@ export const getAllEvents = async (req, res) => {
       message: error.message
     });
   }
+};
+
+export const getEventById = async (req, res) => {
+try {
+const eventId  = req.params.id;
+
+const event = await getEventsByIdService(eventId);
+
+return res.status(200).json({
+  success: true,
+  data: event,
+});
+
+} catch (error) {
+if (error.message === "Event not found") {
+return res.status(404).json({
+success: false,
+message: error.message,
+});
+}
+
+return res.status(500).json({
+  success: false,
+  message: "Failed to fetch event",
+});
+
+}
+};
+
+export const updateEvent = async (req, res) => {
+try {
+const eventId = req.params.id;
+const eventData = req.body;
+
+const updatedEvent = await updateEventsService(
+  eventData,
+  eventId
+);
+
+return res.status(200).json({
+  success: true,
+  message: "Event updated successfully",
+  data: updatedEvent,
+});
+
+} catch (error) {
+if (error.message === "Event not found") {
+return res.status(404).json({
+success: false,
+message: error.message,
+});
+}
+
+console.error("Update event error:", error);
+
+return res.status(500).json({
+  success: false,
+  message: "Failed to update event",
+});
+
+}
 };
