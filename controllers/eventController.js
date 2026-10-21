@@ -24,7 +24,7 @@ if (validationError) {
   price: req.body.price,
   total_tickets: req.body.total_tickets,
   available_tickets: req.body.total_tickets,
-  status: "draft", // Add this
+  status: "draft",
   created_by: req.user
 };
     const result=await createEventService(eventData);
