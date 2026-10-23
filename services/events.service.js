@@ -1,33 +1,34 @@
 import pool from "../config/db.js";
 
-export const createEventService=async (eventData) => {
-      
+
+
+export const createEventService = async (eventData) => {
   const query = `
     INSERT INTO events (
-        title,
-        description,
-        category,
-        venue,
-        start_date,
-        end_date,
-        price,
-        total_tickets,
-        available_tickets,
-        status,
-        created_by
+      title,
+      description,
+      category,
+      venue_id,
+      start_date,
+      end_date,
+      price,
+      total_tickets,
+      available_tickets,
+      status,
+      created_by
     )
     VALUES (
-        $1, $2, $3, $4, $5, $6,
-        $7, $8, $9, $10, $11
+      $1, $2, $3, $4, $5, $6,
+      $7, $8, $9, $10, $11
     )
     RETURNING *;
-`;
+  `;
 
-const values = [
+  const values = [
     eventData.title,
     eventData.description,
     eventData.category,
-    eventData.venue,
+    eventData.venue_id,
     eventData.start_date,
     eventData.end_date,
     eventData.price,
@@ -35,16 +36,12 @@ const values = [
     eventData.available_tickets,
     eventData.status,
     eventData.created_by
-];
+  ];
 
-const result = await pool.query(query, values);
+  const result = await pool.query(query, values);
 
-return result.rows[0];
-
-
-
-
-}
+  return result.rows[0];
+};
 
 
 export const getAllEventsService = async (page, limit, sort) => {
@@ -88,14 +85,22 @@ export const getAllEventsService = async (page, limit, sort) => {
 
   // 5. Fetch events
   const result = await pool.query(
-    `SELECT title, description, category, venue,
-            start_date, end_date, price
-     FROM events
+    `SELECT
+  id,
+  title,
+  description,
+  category,
+  venue_id,
+  start_date,
+  end_date,
+  price,
+  available_tickets
+FROM events
      WHERE available_tickets > 0
        AND status = $1
      ORDER BY ${safeSort} ${safeOrder}
      LIMIT $2 OFFSET $3`,
-    ["draft", limit, skip]
+    ["published", limit, skip]
   );
 
   return {
@@ -108,7 +113,22 @@ export const getEventsByIdService=async (eventId) => {
     
   
 
-  const query= 'SELECT title, description, category, venue,start_date, end_date, price FROM events WHERE id=$1'
+ const query = `
+    SELECT
+      id,
+      title,
+      description,
+      category,
+      venue_id,
+      start_date,
+      end_date,
+      price,
+      total_tickets,
+      available_tickets,
+      status
+    FROM events
+    WHERE id = $1
+  `;
 
   const result=await pool.query(query,[eventId]  )
 
@@ -123,49 +143,64 @@ export const getEventsByIdService=async (eventId) => {
 
 }
 
-export const updateEventsService=async (eventData,eventId) => {
-  
- const {title,description,start_date,end_date,price,venue,category,status}=eventData;
+export const updateEventsService = async (eventData, eventId) => {
+  const {
+    title,
+    description,
+    category,
+    venue_id,
+    start_date,
+    end_date,
+    price,
+    status
+  } = eventData;
 
-  const query=`UPDATE events
-SET
-    title = COALESCE($1, title),
-    description = COALESCE($2, description),
-    category = COALESCE($3, category),
-    venue = COALESCE($4, venue),
-    start_date = COALESCE($5, start_date),
-    end_date = COALESCE($6, end_date),
-    price = COALESCE($7, price),
-    status=COALESCE($8,status)
-WHERE id = $9
-RETURNING *;`
+  const query = `
+    UPDATE events
+    SET
+      title = COALESCE($1, title),
+      description = COALESCE($2, description),
+      category = COALESCE($3, category),
+      venue_id = COALESCE($4, venue_id),
+      start_date = COALESCE($5, start_date),
+      end_date = COALESCE($6, end_date),
+      price = COALESCE($7, price),
+      status = COALESCE($8, status),
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $9
+    RETURNING *;
+  `;
 
-const data=  [
-      title ?? null,
-      description ?? null,
-      category ?? null,
-      venue ?? null,
-      start_date ?? null,
-      end_date ?? null,
-      price ?? null,
-      status ?? null,
-      eventId,
-    ]
+  const values = [
+    title ?? null,
+    description ?? null,
+    category ?? null,
+    venue_id ?? null,
+    start_date ?? null,
+    end_date ?? null,
+    price ?? null,
+    status ?? null,
+    eventId
+  ];
 
+  const result = await pool.query(query, values);
 
-    const result=await pool.query(query,data);
-
-    if (result.rowCount === 0) {
+  if (result.rowCount === 0) {
     throw new Error("Event not found");
   }
 
   return result.rows[0];
+};
 
 
+export const getSeatMapService=async (eventId) => {
+  
+  const eventDate=await pool.query(`select * from events where id=$1`,[eventId]);
 
-}
-
-export const cancelEvent=async (data) => {
+  if(eventDate.rows[0]==0)throw new Error("No events");
 
   
+ 
+
+
 }

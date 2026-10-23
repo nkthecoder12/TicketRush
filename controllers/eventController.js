@@ -1,4 +1,4 @@
-import {createEventService,getAllEventsService,getEventsByIdService,updateEventsService} from "../services/events.service.js"
+import {createEventService,getAllEventsService,getEventsByIdService,updateEventsService,getSeatMapService} from "../services/events.service.js"
 import { validateCreateEvent } from "../validations/event.validation.js";
 
 
@@ -141,3 +141,21 @@ return res.status(500).json({
 
 }
 };
+
+
+export const getSeatMap=async (req,res) => {
+  try {
+      
+    const eventId=req.params.eventId;
+
+    const result= await getSeatMapService(eventId);
+
+
+
+
+
+
+  } catch (error) {
+    
+  }
+}

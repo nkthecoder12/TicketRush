@@ -58,20 +58,47 @@ export const getVenuesByIdService=async (id) => {
 }
 
 
-export const updateVenueService=async (data) => {
+export const updateVenueService=async (data,id) => {
     
-    const query=`update venues set name=coalesce($1 , name),address=coalesce($2,address), city=coalesce($3,city),capacity=coalesce($4,capacity) `
+    const query=`update venues set name=coalesce($1 , name),address=coalesce($2,address), city=coalesce($3,city),capacity=coalesce($4,capacity) where id=$5  returning *`
 
 
     const values=[
-      data.name
-
-
+      data.name??null,
+      data.address??null,
+      data.city??null,
+      data.capacity??null,
+      id
     ]
-    
+
+
+    const result=await pool.query(query,values);
+
+    if (result.rowCount === 0) {
+    throw new Error(" not found");
+  }
+
+  return result.rows[0];
 
 
 
+
+
+}
+
+
+export const deleteVenuesService=async (id) => {
+  
+ 
+  const query=`delete from venues where id=$1  RETURNING *`
+
+   const result=await pool.query(query,[id]);
+
+    if (result.rowCount === 0) {
+    throw new Error("not found");
+  }
+
+  return result.rows[0];
 
 
 }
