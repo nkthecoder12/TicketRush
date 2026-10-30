@@ -18,7 +18,7 @@ if (validationError) {
   title: req.body.title.trim(),
   description: req.body.description ?? null,
   category: req.body.category.trim(),
-  venue: req.body.venue.trim(),
+  venue_id: req.body.venueId.trim(),
   start_date: req.body.start_date,
   end_date: req.body.end_date,
   price: req.body.price,
@@ -142,20 +142,21 @@ return res.status(500).json({
 }
 };
 
-
-export const getSeatMap=async (req,res) => {
+export const getSeatMap = async (req, res) => {
   try {
-      
-    const eventId=req.params.eventId;
+    const { eventId } = req.params;
 
-    const result= await getSeatMapService(eventId);
+    const seatData = await getSeatMapService(eventId);
 
-
-
-
-
-
+    return res.status(200).json({
+      success: true,
+      message: "Seat map fetched successfully",
+      data: seatData,
+    });
   } catch (error) {
-    
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
-}
+};

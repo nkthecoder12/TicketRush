@@ -3,6 +3,7 @@ import { createVenueService,getVenuesService, updateVenueService,
   deleteVenuesService ,getVenuesByIdService} from "../services/venue.service.js";
 
 export const createVenue = async (req, res) => {
+  
   try {
     const { name, address, city, capacity } = req.body;
 
@@ -64,7 +65,7 @@ export const getVenueById = async (req, res) => {
   try {
 
     const {id}=req.params;
-    const venues = await getVenuesByIdService();
+    const venues = await getVenuesByIdService(id);
 
     return res.status(200).json({
       success: true,

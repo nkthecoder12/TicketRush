@@ -1,6 +1,5 @@
 import pool from "../config/db.js";
-
-
+import bcrypt from "bcryptjs";
 
 export const createEventService = async (eventData) => {
   const query = `
@@ -35,14 +34,13 @@ export const createEventService = async (eventData) => {
     eventData.total_tickets,
     eventData.available_tickets,
     eventData.status,
-    eventData.created_by
+    eventData.created_by,
   ];
 
   const result = await pool.query(query, values);
 
   return result.rows[0];
 };
-
 
 export const getAllEventsService = async (page, limit, sort) => {
   // 1. Count all published events that have available tickets
@@ -51,7 +49,7 @@ export const getAllEventsService = async (page, limit, sort) => {
      FROM events
      WHERE available_tickets > 0
        AND status = $1`,
-    ["published"]
+    ["published"],
   );
 
   const totalEvents = Number(countResult.rows[0].total);
@@ -64,20 +62,13 @@ export const getAllEventsService = async (page, limit, sort) => {
     currentPage: page,
     limit,
     totalEvents,
-    totalPages
+    totalPages,
   };
 
   // 3. Validate the sort column
-  const allowedSortColumns = [
-    "start_date",
-    "end_date",
-    "price",
-    "title"
-  ];
+  const allowedSortColumns = ["start_date", "end_date", "price", "title"];
 
-  const safeSort = allowedSortColumns.includes(sort)
-    ? sort
-    : "start_date";
+  const safeSort = allowedSortColumns.includes(sort) ? sort : "start_date";
 
   // 4. Validate the sort direction
   const order = "ASC";
@@ -100,20 +91,17 @@ FROM events
        AND status = $1
      ORDER BY ${safeSort} ${safeOrder}
      LIMIT $2 OFFSET $3`,
-    ["published", limit, skip]
+    ["published", limit, skip],
   );
 
   return {
     results: result.rows,
-    pagination
+    pagination,
   };
 };
 
-export const getEventsByIdService=async (eventId) => {
-    
-  
-
- const query = `
+export const getEventsByIdService = async (eventId) => {
+  const query = `
     SELECT
       id,
       title,
@@ -130,18 +118,15 @@ export const getEventsByIdService=async (eventId) => {
     WHERE id = $1
   `;
 
-  const result=await pool.query(query,[eventId]  )
+  const result = await pool.query(query, [eventId]);
 
-   if (result.rowCount === 0) {
+  if (result.rowCount === 0) {
     throw new Error("Event not found");
   }
-   const data=result.rows[0];
+  const data = result.rows[0];
 
   return data;
-
-
-
-}
+};
 
 export const updateEventsService = async (eventData, eventId) => {
   const {
@@ -152,7 +137,7 @@ export const updateEventsService = async (eventData, eventId) => {
     start_date,
     end_date,
     price,
-    status
+    status,
   } = eventData;
 
   const query = `
@@ -180,7 +165,7 @@ export const updateEventsService = async (eventData, eventId) => {
     end_date ?? null,
     price ?? null,
     status ?? null,
-    eventId
+    eventId,
   ];
 
   const result = await pool.query(query, values);
@@ -192,15 +177,196 @@ export const updateEventsService = async (eventData, eventId) => {
   return result.rows[0];
 };
 
+export const getSeatMapService = async (eventId) => {
+  const eventData = await pool.query(`SELECT id FROM events WHERE id = $1`, [
+    eventId,
+  ]);
 
-export const getSeatMapService=async (eventId) => {
-  
-  const eventDate=await pool.query(`select * from events where id=$1`,[eventId]);
+  if (eventData.rows.length === 0) {
+    throw new Error("Event not found");
+  }
 
-  if(eventDate.rows[0]==0)throw new Error("No events");
+  const seatData = await pool.query(
+    `SELECT
+       s.id AS seat_id,
+       s.section,
+       s.row_label,
+       s.seat_number,
+       es.price,
+       es.status
+     FROM seats s
+     JOIN event_seats es
+       ON s.id = es.seat_id
+     WHERE es.event_id = $1
+     ORDER BY s.section, s.row_label, s.seat_number`,
+    [eventId],
+  );
 
-  
- 
+  return seatData.rows;
+};
 
+import { createHash } from "node:crypto";
+import pool from "../config/db.js";
 
-}
+const createError = (message, statusCode = 400) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+export const createSeatHoldService = async (
+  userId,
+  eventId,
+  eventSeatIds,
+  idempotencyKey,
+) => {
+  // 1. Validate input
+  if (!Array.isArray(eventSeatIds) || eventSeatIds.length === 0) {
+    throw createError("Select at least one seat");
+  }
+
+  if (new Set(eventSeatIds.map(String)).size !== eventSeatIds.length) {
+    throw createError("Duplicate seat IDs are not allowed");
+  }
+
+  // Normalize the seat IDs so the same set produces the same hash.
+  const normalizedSeatIds = eventSeatIds.map(String).sort();
+
+  const requestHash = createHash("sha256")
+    .update(JSON.stringify({ eventSeatIds: normalizedSeatIds }))
+    .digest("hex");
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 2. Claim the idempotency key atomically
+    const insertRequest = await client.query(
+      `INSERT INTO idempotency_requests
+        (user_id, event_id, idempotency_key, request_body_hash, status)
+       VALUES ($1, $2, $3, $4, 'processing')
+       ON CONFLICT (user_id, event_id, idempotency_key)
+       DO NOTHING
+       RETURNING *`,
+      [userId, eventId, idempotencyKey, requestHash],
+    );
+
+    // 3. If the key already exists, handle the retry
+    if (insertRequest.rows.length === 0) {
+      const existingResult = await client.query(
+        `SELECT *
+         FROM idempotency_requests
+         WHERE user_id = $1
+           AND event_id = $2
+           AND idempotency_key = $3
+         FOR UPDATE`,
+        [userId, eventId, idempotencyKey],
+      );
+
+      const existing = existingResult.rows[0];
+
+      if (!existing) {
+        throw createError("Unable to resolve idempotency request", 409);
+      }
+
+      if (existing.request_body_hash !== requestHash) {
+        throw createError(
+          "Idempotency key reused with a different request",
+          409,
+        );
+      }
+
+      if (existing.status === "completed") {
+        await client.query("COMMIT");
+        return existing.response_body;
+      }
+
+      throw createError("Request is still processing; retry shortly", 409);
+    }
+
+    const seatsResult = await client.query(
+      `SELECT id, event_id, status
+       FROM event_seats
+       WHERE event_id = $1
+         AND id = ANY($2::bigint[])
+       ORDER BY id
+       FOR UPDATE`,
+      [eventId, normalizedSeatIds],
+    );
+
+    if (seatsResult.rows.length !== normalizedSeatIds.length) {
+      throw createError("One or more seats do not belong to this event", 404);
+    }
+
+    const unavailableSeat = seatsResult.rows.find(
+      (seat) => seat.status !== "available",
+    );
+
+    if (unavailableSeat) {
+      throw createError("One or more seats are already booked", 409);
+    }
+
+    // 5. Expire old holds so they no longer block these seats
+
+    await client.query(
+      `UPDATE seat_holds
+       SET status = 'expired'
+       WHERE event_seat_id = ANY($1::bigint[])
+         AND status = 'active'
+         AND expires_at <= NOW()`,
+      [normalizedSeatIds],
+    );
+
+    // 6. Create all holds with a shared 15-minute expiration
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    const holds = [];
+
+    for (const eventSeatId of normalizedSeatIds) {
+      const holdResult = await client.query(
+        `INSERT INTO seat_holds
+          (user_id, event_seat_id, status, expires_at)
+         VALUES ($1, $2, 'active', $3)
+         RETURNING *`,
+        [userId, eventSeatId, expiresAt],
+      );
+
+      holds.push(holdResult.rows[0]);
+    }
+
+    // 7. Save the response for future idempotent retries
+    const responseBody = {
+      message: "Seats held successfully",
+      expiresAt: expiresAt.toISOString(),
+      holds,
+    };
+
+    await client.query(
+      `UPDATE idempotency_requests
+       SET status = 'completed',
+           response_body = $1::jsonb
+       WHERE user_id = $2
+         AND event_id = $3
+         AND idempotency_key = $4`,
+      [JSON.stringify(responseBody), userId, eventId, idempotencyKey],
+    );
+
+    // 8. Commit everything together
+    await client.query("COMMIT");
+
+    return responseBody;
+  } catch (error) {
+    await client.query("ROLLBACK");
+
+    if (error.code === "23505") {
+      throw createError(
+        "One or more seats are already held by another request",
+        409,
+      );
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+};

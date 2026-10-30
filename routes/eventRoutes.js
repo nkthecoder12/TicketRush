@@ -16,6 +16,6 @@ router.get("/:id", getEventById);
 // Update an event
 router.patch("/:id", authenticateUser, updateEvent);
 
-router.get("/:eventId/seat-map",getSeatMap);
+router.get("/:eventId/seats",getSeatMap);
 
 export default router
