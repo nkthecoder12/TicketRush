@@ -12,20 +12,18 @@ if (validationError) {
     message: validationError
   });
 }
- 
-
-     const eventData = {
-  title: req.body.title.trim(),
-  description: req.body.description ?? null,
-  category: req.body.category.trim(),
-  venue_id: req.body.venueId.trim(),
-  start_date: req.body.start_date,
-  end_date: req.body.end_date,
-  price: req.body.price,
-  total_tickets: req.body.total_tickets,
-  available_tickets: req.body.total_tickets,
-  status: "draft",
-  created_by: req.user
+ const eventData = {
+    title: req.body.title.trim(),
+    description: req.body.description?.trim() ?? null,
+    category: req.body.category.trim(),
+    venue_id: req.body.venue_id,
+    start_date: req.body.start_date,
+    end_date: req.body.end_date,
+    price: req.body.price,
+    total_tickets: req.body.total_tickets,
+    available_tickets: req.body.total_tickets,
+    status: "draft",
+    created_by: req.user.id
 };
     const result=await createEventService(eventData);
 

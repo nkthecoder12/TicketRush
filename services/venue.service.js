@@ -41,21 +41,11 @@ export const getVenuesService = async () => {
 
 
 
-export const getVenuesByIdService=async (id) => {
-  
-    const query= `
-    SELECT *
-    FROM venues where id =$1
-    ORDER BY id DESC
-  `
-    const result=await pool.query(query,[id]);
 
-
-    return result.rows[0];
-
-
-
-}
+export const getVenuesByIdService = async (id) => {
+  const result = await pool.query(`SELECT * FROM venues WHERE id = $1`, [id]);
+  return result.rows[0] ?? null;
+};
 
 
 export const updateVenueService=async (data,id) => {

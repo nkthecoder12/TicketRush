@@ -3,7 +3,7 @@ import { createVenueService,getVenuesService, updateVenueService,
   deleteVenuesService ,getVenuesByIdService} from "../services/venue.service.js";
 
 export const createVenue = async (req, res) => {
-  
+
   try {
     const { name, address, city, capacity } = req.body;
 
@@ -60,28 +60,26 @@ export const getVenues = async (req, res) => {
     });
   }
 };
-
 export const getVenueById = async (req, res) => {
   try {
+    const id = Number(req.params.id);
 
-    const {id}=req.params;
-    const venues = await getVenuesByIdService(id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid venue id" });
+    }
 
-    return res.status(200).json({
-      success: true,
-      count: venues.length,
-      data: venues
-    });
+    const venue = await getVenuesByIdService(id);
+
+    if (!venue) {
+      return res.status(404).json({ success: false, message: "Venue not found" });
+    }
+
+    return res.status(200).json({ success: true, data: venue });
   } catch (error) {
-    console.error("Get venues error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch venues"
-    });
+    console.error("Get venue error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch venue" });
   }
 };
-
 
 // PATCH /api/venues/:id
 export const updateVenue = async (req, res) => {

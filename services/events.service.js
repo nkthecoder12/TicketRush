@@ -1,5 +1,6 @@
 import pool from "../config/db.js";
 import bcrypt from "bcryptjs";
+import { createHash, randomUUID } from "node:crypto";
 
 export const createEventService = async (eventData) => {
   const query = `
@@ -186,27 +187,24 @@ export const getSeatMapService = async (eventId) => {
     throw new Error("Event not found");
   }
 
-  const seatData = await pool.query(
-    `SELECT
-       s.id AS seat_id,
-       s.section,
-       s.row_label,
-       s.seat_number,
-       es.price,
-       es.status
-     FROM seats s
-     JOIN event_seats es
-       ON s.id = es.seat_id
-     WHERE es.event_id = $1
-     ORDER BY s.section, s.row_label, s.seat_number`,
-    [eventId],
-  );
+const result = await pool.query(
+  `SELECT es.id AS event_seat_id,
+          es.status,
+          s.section,
+          s.row_label,
+          s.seat_number
+   FROM event_seats es
+   JOIN seats s ON s.id = es.seat_id
+   WHERE es.event_id = $1
+   ORDER BY s.section, s.row_label, s.seat_number`,
+  
+  [eventId]
+);
 
-  return seatData.rows;
+  return result.rows;
 };
 
-import { createHash } from "node:crypto";
-import pool from "../config/db.js";
+
 
 const createError = (message, statusCode = 400) => {
   const error = new Error(message);
@@ -292,7 +290,7 @@ export const createSeatHoldService = async (
          AND id = ANY($2::bigint[])
        ORDER BY id
        FOR UPDATE`,
-      [eventId, normalizedSeatIds],
+      [eventId, normalizedSeatIds]
     );
 
     if (seatsResult.rows.length !== normalizedSeatIds.length) {
@@ -300,35 +298,44 @@ export const createSeatHoldService = async (
     }
 
     const unavailableSeat = seatsResult.rows.find(
-      (seat) => seat.status !== "available",
+      (seat) => seat.status !== SEAT_STATUS.AVAILABLE,
     );
 
     if (unavailableSeat) {
       throw createError("One or more seats are already booked", 409);
     }
+    await client.query(
+      `UPDATE event_seats
+       SET status = $1
+       WHERE event_id = $2
+         AND id = ANY($3::bigint[])`,
+      [SEAT_STATUS.HELD, eventId, normalizedSeatIds],
+    );
 
     // 5. Expire old holds so they no longer block these seats
 
     await client.query(
       `UPDATE seat_holds
-       SET status = 'expired'
-       WHERE event_seat_id = ANY($1::bigint[])
-         AND status = 'active'
+       SET status = $1
+       WHERE event_seat_id = ANY($2::bigint[])
+         AND status = $3
          AND expires_at <= NOW()`,
-      [normalizedSeatIds],
+      [HOLD_STATUS.EXPIRED, normalizedSeatIds, HOLD_STATUS.ACTIVE],
     );
 
     // 6. Create all holds with a shared 15-minute expiration
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     const holds = [];
 
+       const holdGroupId = randomUUID(); 
+
     for (const eventSeatId of normalizedSeatIds) {
       const holdResult = await client.query(
         `INSERT INTO seat_holds
-          (user_id, event_seat_id, status, expires_at)
-         VALUES ($1, $2, 'active', $3)
+          (user_id, event_seat_id, status, hold_group_id, expires_at)
+         VALUES ($1, $2, $3,$4 $5)
          RETURNING *`,
-        [userId, eventSeatId, expiresAt],
+        [userId, eventSeatId, HOLD_STATUS.ACTIVE,holdGroupId, expiresAt],
       );
 
       holds.push(holdResult.rows[0]);

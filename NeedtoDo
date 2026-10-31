@@ -1,0 +1,282 @@
+Here is **Item 9: `loginService`**. I haven't seen your code yet, so this follows the review's description. Paste `loginService` and I'll check it against the real thing. There are two problems, plus one security point that comes from fixing the first.
+
+## Problem 1: `if (!result)` is never true
+
+`pool.query()` always returns a **result object**, even when nothing matches. For a wrong email it returns `{ rows: [], rowCount: 0, ... }`. An object is always truthy, so `!result` is always false and the check never runs.
+
+Then the code does something like `result.rows[0].password`. For a wrong email, `rows[0]` is `undefined`, so you get `TypeError: Cannot read properties of undefined`, and the client sees a 500. The same root cause as Item 6: `pg` hands back an array of rows, never `null`. The correct check is on `rows`, not on `result`.
+
+## Problem 2: `console.log(accessToken)`
+
+An access token is a **bearer credential**: whoever holds it *is* that user until it expires. Logs are copied to places with much wider access than your database: log aggregators, dashboards, error trackers, teammates' terminals. A token in a log is effectively a leaked password. Never log tokens, passwords, or full request bodies from auth routes. If you need to trace a login, log the user id.
+
+## The security point: don't reveal which part was wrong
+
+Once you return 401 for a missing email, you must not say "email not found" for one case and "wrong password" for the other. That lets an attacker test which emails have accounts (**user enumeration**). Return the same message for both: `"Invalid email or password"`.
+
+There is a subtler leak too. If the email doesn't exist you skip `bcrypt.compare`, which is deliberately slow (around 100ms). So "no such email" answers fast and "wrong password" answers slowly, and an attacker can measure the difference. The fix is to always run a compare, against a dummy hash when there is no user.
+
+| Option | Tradeoff |
+|---|---|
+| Return early when no user | Simplest, but leaks through response time. |
+| **Compare against a dummy hash** | Costs one extra bcrypt for unknown emails. Response times match closely. |
+| Rate limiting per IP/email | Needed in production anyway to slow brute force. It complements this and doesn't replace it. |
+
+## The fix
+
+Adapt the column names to yours (`password_hash` vs `password`):
+
+```js
+import bcrypt from "bcrypt";
+
+// computed once at startup, not per request
+const DUMMY_HASH = await bcrypt.hash("not-a-real-password", 10);
+
+export const loginService = async (email, password) => {
+  if (typeof email !== "string" || typeof password !== "string") {
+    throw createError("Email and password are required", 400);
+  }
+
+  const result = await pool.query(
+    `SELECT id, email, password_hash, role FROM users WHERE email = $1`,
+    [email.trim().toLowerCase()],
+  );
+
+  const user = result.rows[0];
+
+  // always run one compare, so both failure paths take similar time
+  const passwordOk = await bcrypt.compare(password, user?.password_hash ?? DUMMY_HASH);
+
+  if (!user || !passwordOk) {
+    throw createError("Invalid email or password", 401);
+  }
+
+  const accessToken = jwt.sign(
+    { id: user.id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" },
+  );
+
+  return { accessToken, user: { id: user.id, email: user.email, role: user.role } };
+};
+```
+
+Why each part:
+
+- **`typeof` checks:** `bcrypt.compare` throws if `password` isn't a string. This is the same "untrusted input" lesson as `venueId.trim()` in Item 8.
+- **Lowercasing the email:** make sure signup stores it lowercased too, or users with `A@x.com` can't log in.
+- **Selecting named columns:** that way the hash can't end up in the response by accident. Never return `password_hash` to the client.
+- **The payload `{ id, role }`:** this decides what `req.user` holds in your `authMiddleware`. It connects to Item 8, so `created_by: req.user.id` works only if the field is called `id` here.
+- **`expiresIn: "15m"`:** the shorter a token lives, the less damage a leak does. Real systems pair it with a refresh token. Skip that for now, but know it's the direction.
+
+## Check it worked
+
+1. Wrong email returns 401 "Invalid email or password", not a 500.
+2. Right email with a wrong password returns the **same** 401 and message.
+3. A missing password or a number as the email returns 400.
+4. A correct login returns a token, and your terminal shows no token in the output.
+
+Say "done" and the quick fixes (items 4-9) are finished. The next piece is **seat generation**: creating `event_seats` when an event is published. Without it the seat map is empty and holds have nothing to claim. It's the first place where we'll use a bulk `INSERT ... SELECT` and tie it into the same transaction idea you learned in Item 3.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Here is **Item 8: `createEvent`**. I haven't seen your `createEvent` controller or `authMiddleware` yet, so I'm working from the review's description. Paste both and I'll check this against your real code. There are three separate problems.
+
+## Problem 1: `req.body.venueId.trim()` throws on a number
+
+`.trim()` exists only on strings. If the client sends `{"venueId": 5}` (valid JSON, a number), then `5.trim` is `undefined`, and calling it throws `TypeError: ... .trim is not a function`. That lands in your `catch` as a 500.
+
+The root cause is that `req.body` is untrusted input. JSON lets the client send any type: number, string, `null`, array, object. Your code assumed a type that nobody guaranteed. This is why production APIs validate the type and shape of every field at the edge, often with a schema library like Zod or Joi.
+
+| Option | Tradeoff |
+|---|---|
+| Hand-written checks | No dependency, and you see exactly what happens. Gets repetitive as routes grow. |
+| Schema library (Zod/Joi) | One declaration per route, with consistent errors. A new dependency to learn. |
+
+Hand-written is right while you're learning how it works:
+
+```js
+const venueId = Number(req.body.venueId);
+if (!Number.isInteger(venueId) || venueId <= 0) {
+  return res.status(400).json({ success: false, message: "Invalid venueId" });
+}
+```
+
+`Number("5")` and `Number(5)` both give `5`, so both clients work. `"abc"` gives `NaN`, `"1.5"` gives `1.5`, and `""` or `null` give `0`, and all of those fail the check. For text fields like the title, use `typeof title !== "string"` before you call `.trim()` on it.
+
+## Problem 2: `created_by: req.user`
+
+Look at what your `authMiddleware` puts on `req.user`. The common pattern is `req.user = jwt.verify(token, secret)`, which sets it to the **decoded payload**, an object like `{ id: "...", role: "admin", iat: ..., exp: ... }`.
+
+If so, `created_by: req.user` passes an **object** to a column that expects an id. `pg` would turn it into JSON text, and Postgres would throw `22P02` (invalid input syntax) or `23503` (foreign key violation). Both are confusing failures. The fix is `created_by: req.user.id`, but only if the payload field is really called `id`. It could be `userId` or `sub`. That is why I need your middleware.
+
+Never take `created_by` from `req.body`. The client could then claim to be anyone. The identity must come from the verified token.
+
+## Problem 3: raw DB messages leak to the client
+
+If your `catch` does `res.status(500).json({ message: error.message })`, a Postgres error reaches the client as something like `insert or update on table "events" violates foreign key constraint "events_venue_id_fkey"`. That leaks your table and constraint names, which helps an attacker map your schema, and the client can't act on it.
+
+When the venue doesn't exist, Postgres throws `23503`. The cause is the client's input, so it's a **400**, not a 500.
+
+You might think of checking `SELECT ... FROM venues` first. Don't rely on that alone. Between your check and your insert, someone could delete the venue. That is the same check-then-act race from Item 3. The foreign key is the real guarantee, so let the database enforce it and translate the error.
+
+## The catch block
+
+```js
+} catch (error) {
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({ success: false, message: error.message });
+  }
+
+  if (error.code === "23503") {
+    // 23503 can come from venue_id OR created_by, so look at which constraint
+    if (error.constraint?.includes("venue")) {
+      return res.status(400).json({ success: false, message: "Venue does not exist" });
+    }
+  }
+
+  if (error.code === "22P02" || error.code === "22007") {
+    return res.status(400).json({ success: false, message: "Invalid input format" });
+  }
+
+  console.error("Create event error:", error);   // full detail stays in your logs
+  return res.status(500).json({ success: false, message: "Failed to create event" });
+}
+```
+
+- **`error.constraint`** holds the constraint's name. Check your real name with `\d events`. The default pattern is `events_venue_id_fkey`.
+- **`22007`** is a bad date format, which you'll hit with `starts_at`.
+- Full details go to `console.error` for you, and the client gets a generic message.
+
+## Check it worked
+
+1. Send `venueId` as a number and as a string `"5"`. Both should work.
+2. Send `venueId: "abc"`, `null`, or leave it out. You should get a 400.
+3. Send `venueId: 99999`. You should get a 400 "Venue does not exist", not a raw Postgres message.
+4. Create an event and check `SELECT created_by FROM events ORDER BY id DESC LIMIT 1`. It should be a real user id.
+
+Paste your `createEvent` controller and `authMiddleware` so I can confirm the `req.user` field name. Then we'll do **Item 9: `loginService`**, which has a wrong-email bug and a token being logged.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Here is **Item 7: venue update and delete return 500 instead of 404**.
+
+## What's wrong in your code
+
+The service and the controller disagree on the exact error text:
+
+| Where | Message |
+|---|---|
+| `updateVenueService` throws | `" not found"` (with a leading space) |
+| `deleteVenuesService` throws | `"not found"` |
+| Both controllers check | `"Venue not found"` |
+
+`===` on strings needs an exact match, so neither check ever passes. A missing venue falls through to the generic 500.
+
+## The root cause: matching on message text
+
+The quickest fix is to make the strings equal. But that bug will come back, because a message is text written for humans. Someone rewords it, fixes a typo, or translates it, and the controller silently stops matching. The compiler can't warn you, because it's just a string.
+
+## Options
+
+| Option | Tradeoff |
+|---|---|
+| Make the strings match | 10 seconds, but the same fragility stays. |
+| Custom error class (`NotFoundError`) and `instanceof` | Type-safe and the standard in larger codebases. Needs a small class hierarchy. |
+| **Error with a `statusCode`, using your `createError` helper** | You already use it in the hold service, so it's consistent. The controller reads a number, not text. |
+| Error codes (`error.code = "VENUE_NOT_FOUND"`) | Good for APIs where clients branch on the code. More ceremony than you need now. |
+
+Production systems usually do the class or code approach plus **one central error-handling middleware**, so controllers don't each repeat the mapping. For now, the `statusCode` approach teaches the same idea with the least change.
+
+## The fix: services
+
+Import `createError` the same way as in the hold service, then:
+
+```js
+if (result.rowCount === 0) {
+  throw createError("Venue not found", 404);
+}
+```
+
+Use that same line in both `updateVenueService` and `deleteVenuesService`.
+
+## The fix: controllers
+
+Validate the id first, then map errors by `statusCode`. This is the update controller:
+
+```js
+export const updateVenue = async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid venue id" });
+    }
+
+    const venue = await updateVenueService(req.body, id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Venue updated successfully",
+      data: venue,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
+    console.error("Update venue error:", error);
+    return res.status(500).json({ success: false, message: "Failed to update venue" });
+  }
+};
+```
+
+The delete controller is the same, with one addition inside `catch`, before the `statusCode` check:
+
+```js
+if (error.code === "23503") {
+  return res.status(409).json({
+    success: false,
+    message: "Venue has events and cannot be deleted",
+  });
+}
+```
+
+Why that extra case: your `events` table references `venues` through a foreign key. Deleting a venue that has events makes Postgres throw `23503`, which would be a 500. It isn't a server failure, it's a conflict with existing data, so it's a **409**.
+
+## Why `statusCode` is safe here
+
+You only forward `error.message` to the client when the error came from `createError`, because only those have `statusCode`. Raw Postgres errors have `code` but no `statusCode`, so they go to the generic 500 branch and their internal details (table names, constraint names) never leak to the client.
+
+## One thing to watch in update
+
+`coalesce($1, name)` means "keep the old value if the new one is null". That works for partial updates, but you can never intentionally set a field to `NULL`. For venues that's fine, since all four fields are required. Also, an empty body `{}` still runs the update and returns the venue unchanged. That's acceptable, and you can reject it with a 400 later if you want.
+
+## Check it worked
+
+1. `PATCH /api/venues/99999` returns 404 "Venue not found".
+2. `DELETE /api/venues/99999` returns 404.
+3. `PATCH /api/venues/abc` returns 400.
+4. Delete a venue that has an event attached and confirm a 409.
+5. A normal update and a normal delete still return 200.
+
+Say "done" and we'll do **Item 8: `createEvent`**. It has three separate problems (`venueId.trim()`, what `req.user` holds, and raw DB messages leaking). For `req.user`, paste your `authMiddleware` so I can check it against the real code.
