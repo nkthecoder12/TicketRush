@@ -1,14 +1,13 @@
 
 import { loginService,registerService } from "../services/auth.service.js";
+import createError from "../utils/error.js";
 
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required",
-      });
+      throw createError("Email and password are required", 400);
     }
 
     const result = await loginService(email, password);
@@ -32,7 +31,7 @@ export const login = async (req, res, next) => {
       accessToken: result.accessToken,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -42,9 +41,7 @@ export const register = async (req, res, next) => {
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({
-        message: "Name, email, and password are required"
-      });
+      throw createError("Name, email, and password are required", 400);
     }
 
     const result = await registerService(name, email, password);
@@ -56,6 +53,6 @@ export const register = async (req, res, next) => {
     });
 
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };

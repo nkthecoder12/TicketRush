@@ -1,18 +1,16 @@
 
 import { createVenueService,getVenuesService, updateVenueService,
   deleteVenuesService ,getVenuesByIdService} from "../services/venue.service.js";
+import createError from "../utils/error.js";
 
-export const createVenue = async (req, res) => {
+export const createVenue = async (req, res, next) => {
 
   try {
     const { name, address, city, capacity } = req.body;
 
     // Validate required fields
     if (!name || !address || !city || capacity == null) {
-      return res.status(400).json({
-        success: false,
-        message: "Name, address, city and capacity are required"
-      });
+      throw createError("Name, address, city and capacity are required", 400);
     }
 
     // Call service
@@ -30,19 +28,14 @@ export const createVenue = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Create venue error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to create venue"
-    });
+    return next(error);
   }
 };
 
 
 
 
-export const getVenues = async (req, res) => {
+export const getVenues = async (req, res, next) => {
   try {
     const venues = await getVenuesService();
 
@@ -52,39 +45,33 @@ export const getVenues = async (req, res) => {
       data: venues
     });
   } catch (error) {
-    console.error("Get venues error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch venues"
-    });
+    return next(error);
   }
 };
-export const getVenueById = async (req, res) => {
+export const getVenueById = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid venue id" });
+      throw createError("Invalid venue id", 400);
     }
 
     const venue = await getVenuesByIdService(id);
 
-    if (!venue) {
-      return res.status(404).json({ success: false, message: "Venue not found" });
-    }
-
     return res.status(200).json({ success: true, data: venue });
   } catch (error) {
-    console.error("Get venue error:", error);
-    return res.status(500).json({ success: false, message: "Failed to fetch venue" });
+    return next(error);
   }
 };
 
 // PATCH /api/venues/:id
-export const updateVenue = async (req, res) => {
+export const updateVenue = async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      throw createError("Invalid venue id", 400);
+    }
 
     const venue = await updateVenueService(req.body, id);
 
@@ -94,26 +81,18 @@ export const updateVenue = async (req, res) => {
       data: venue
     });
   } catch (error) {
-    console.error("Update venue error:", error);
-
-    if (error.message === "Venue not found") {
-      return res.status(404).json({
-        success: false,
-        message: "Venue not found"
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update venue"
-    });
+    return next(error);
   }
 };
 
 // DELETE /api/venues/:id
-export const deleteVenue = async (req, res) => {
+export const deleteVenue = async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      throw createError("Invalid venue id", 400);
+    }
 
     const venue = await deleteVenuesService(id);
 
@@ -123,18 +102,6 @@ export const deleteVenue = async (req, res) => {
       data: venue
     });
   } catch (error) {
-    console.error("Delete venue error:", error);
-
-    if (error.message === "Venue not found") {
-      return res.status(404).json({
-        success: false,
-        message: "Venue not found"
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete venue"
-    });
+    return next(error);
   }
 };

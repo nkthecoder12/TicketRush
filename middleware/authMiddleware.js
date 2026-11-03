@@ -1,20 +1,17 @@
 
 import jwt from "jsonwebtoken";
 import "dotenv/config"; 
+import createError from "../utils/error.js";
 
 export const authenticateUser = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        message: "Authentication token required",
-      });
+      throw createError("Authentication token required", 401);
     }
 
     const token = authHeader.split(" ")[1];
-    console.log("Token received:", Boolean(token));
-
 
     const userData = jwt.verify(
       token,
@@ -27,10 +24,10 @@ export const authenticateUser = (req, res, next) => {
     next();
 
   } catch (error) {
-      console.error("JWT Error:", error.name, error.message);
-    return res.status(401).json({
-        
-      message: "Invalid or expired token",
-    });
+    if (error.statusCode) {
+      return next(error);
+    }
+
+    return next(createError("Invalid or expired token", 401));
   }
 };

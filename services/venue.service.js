@@ -1,4 +1,5 @@
 import pool from "../config/db.js"
+import createError from "../utils/error.js"
 
 export const createVenueService=async (data) => {
     
@@ -44,7 +45,12 @@ export const getVenuesService = async () => {
 
 export const getVenuesByIdService = async (id) => {
   const result = await pool.query(`SELECT * FROM venues WHERE id = $1`, [id]);
-  return result.rows[0] ?? null;
+
+  if (result.rowCount === 0) {
+    throw createError("Venue not found", 404);
+  }
+
+  return result.rows[0];
 };
 
 
@@ -65,7 +71,7 @@ export const updateVenueService=async (data,id) => {
     const result=await pool.query(query,values);
 
     if (result.rowCount === 0) {
-    throw new Error(" not found");
+      throw createError("Venue not found", 404);
   }
 
   return result.rows[0];
@@ -85,7 +91,7 @@ export const deleteVenuesService=async (id) => {
    const result=await pool.query(query,[id]);
 
     if (result.rowCount === 0) {
-    throw new Error("not found");
+    throw createError("Venue not found", 404);
   }
 
   return result.rows[0];

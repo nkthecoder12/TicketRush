@@ -2,6 +2,8 @@ import pool from  "../config/db.js"
 import bcrypt from "bcryptjs"
 import {createAccessToken,createRefreshToken} from "../utils/jwt.js"
 import jwt from "jsonwebtoken"
+import createError from "../utils/error.js"
+
 export const loginService =async (email,password) => {
    
     const result=await pool.query(
@@ -9,28 +11,22 @@ export const loginService =async (email,password) => {
         [email.trim().toLowerCase()]
     ) 
 
-    if(!result){
-        const error =new Error("Invalid email or password")
-        error.statusCode=401;
-        throw error
-    }
-    
     const userData=result.rows[0];
+
+    if (!userData) {
+        throw createError("Invalid email or password", 401);
+    }
 
     const password_hash=userData.password_hash;
 
     const comparePass= await bcrypt.compare(password,password_hash);
 
     if(!comparePass){
-         const error =new Error("Invalid email or password")
-        error.statusCode=401;
-        throw error
+        throw createError("Invalid email or password", 401);
     }
 
     const accessToken=createAccessToken(userData.id);
     const refreshToken=createRefreshToken(userData.id);
-    console.log(accessToken);
-
     const data={
         id:userData.id,
         name:userData.name,
@@ -60,9 +56,7 @@ export const registerService = async (name, email, password) => {
   );
 
   if (existingUser.rows.length > 0) {
-    const error = new Error("User already registered");
-    error.statusCode = 409;
-    throw error;
+    throw createError("User already registered", 409);
   }
 
   const hashedPassword = await bcrypt.hash(password, 12);

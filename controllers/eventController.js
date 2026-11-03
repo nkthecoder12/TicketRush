@@ -1,5 +1,6 @@
 import {createEventService,getAllEventsService,getEventsByIdService,updateEventsService,getSeatMapService} from "../services/events.service.js"
 import { validateCreateEvent } from "../validations/event.validation.js";
+import createError from "../utils/error.js";
 
 
 export const createEvent=async (req,res,next) => {
@@ -7,10 +8,7 @@ export const createEvent=async (req,res,next) => {
    const validationError = validateCreateEvent(req.body);
 
 if (validationError) {
-  return res.status(400).json({
-    success: false,
-    message: validationError
-  });
+  throw createError(validationError, 400);
 }
  const eventData = {
     title: req.body.title.trim(),
@@ -34,10 +32,7 @@ if (validationError) {
 
 
      } catch (error) {
-       return res.status(400).json({
-        message:error.message,
-       
-    })
+       return next(error);
      }
    
 
@@ -47,7 +42,7 @@ if (validationError) {
 }
 
 
-export const getAllEvents = async (req, res) => {
+export const getAllEvents = async (req, res, next) => {
   try {
     const pageNumber = Math.max(
       1,
@@ -73,13 +68,11 @@ export const getAllEvents = async (req, res) => {
       pagination: result.pagination
     });
   } catch (error) {
-    return res.status(500).json({
-      message: error.message
-    });
+    return next(error);
   }
 };
 
-export const getEventById = async (req, res) => {
+export const getEventById = async (req, res, next) => {
 try {
 const eventId  = req.params.id;
 
@@ -91,22 +84,11 @@ return res.status(200).json({
 });
 
 } catch (error) {
-if (error.message === "Event not found") {
-return res.status(404).json({
-success: false,
-message: error.message,
-});
-}
-
-return res.status(500).json({
-  success: false,
-  message: "Failed to fetch event",
-});
-
+return next(error);
 }
 };
 
-export const updateEvent = async (req, res) => {
+export const updateEvent = async (req, res, next) => {
 try {
 const eventId = req.params.id;
 const eventData = req.body;
@@ -123,24 +105,11 @@ return res.status(200).json({
 });
 
 } catch (error) {
-if (error.message === "Event not found") {
-return res.status(404).json({
-success: false,
-message: error.message,
-});
-}
-
-console.error("Update event error:", error);
-
-return res.status(500).json({
-  success: false,
-  message: "Failed to update event",
-});
-
+return next(error);
 }
 };
 
-export const getSeatMap = async (req, res) => {
+export const getSeatMap = async (req, res, next) => {
   try {
     const { eventId } = req.params;
 
@@ -152,9 +121,6 @@ export const getSeatMap = async (req, res) => {
       data: seatData,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return next(error);
   }
 };

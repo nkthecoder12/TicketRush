@@ -1,6 +1,8 @@
 import pool from "../config/db.js";
 import bcrypt from "bcryptjs";
 import { createHash, randomUUID } from "node:crypto";
+import { HOLD_STATUS, SEAT_STATUS } from "../constants/status.js";
+import createError from "../utils/error.js";
 
 export const createEventService = async (eventData) => {
   const query = `
@@ -122,8 +124,9 @@ export const getEventsByIdService = async (eventId) => {
   const result = await pool.query(query, [eventId]);
 
   if (result.rowCount === 0) {
-    throw new Error("Event not found");
+    throw createError("Event not found", 404);
   }
+  
   const data = result.rows[0];
 
   return data;
@@ -172,7 +175,7 @@ export const updateEventsService = async (eventData, eventId) => {
   const result = await pool.query(query, values);
 
   if (result.rowCount === 0) {
-    throw new Error("Event not found");
+    throw createError("Event not found", 404);
   }
 
   return result.rows[0];
@@ -184,7 +187,7 @@ export const getSeatMapService = async (eventId) => {
   ]);
 
   if (eventData.rows.length === 0) {
-    throw new Error("Event not found");
+    throw createError("Event not found", 404);
   }
 
 const result = await pool.query(
@@ -206,11 +209,7 @@ const result = await pool.query(
 
 
 
-const createError = (message, statusCode = 400) => {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
-};
+
 
 export const createSeatHoldService = async (
   userId,

@@ -4,6 +4,7 @@ import authRouter from "../routes/authRoutes.js"
 import eventRouter from "../routes/eventRoutes.js"
 import venueRoutes from "../routes/venueRoutes.js"
 import { authenticateUser } from "../middleware/authMiddleware.js";
+import { errorMiddleware } from "../middleware/errorMiddleware.js";
 import "dotenv/config"; 
 
 const app = express();
@@ -39,5 +40,6 @@ app.use("/api/events",eventRouter)
 
 app.use("/api/venues", venueRoutes);
 
+app.use(errorMiddleware);
 
 export default app;
