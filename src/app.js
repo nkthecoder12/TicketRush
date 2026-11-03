@@ -5,6 +5,8 @@ import eventRouter from "../routes/eventRoutes.js"
 import venueRoutes from "../routes/venueRoutes.js"
 import { authenticateUser } from "../middleware/authMiddleware.js";
 import { errorMiddleware } from "../middleware/errorMiddleware.js";
+import swaggerUi from "swagger-ui-express";
+import swaggerSpec from "../config/swagger.js";
 import "dotenv/config"; 
 
 const app = express();
@@ -20,7 +22,11 @@ app.get("/health", (req, res) => {
   });
 });
 
-
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec)
+);
 
 app.get("/me", authenticateUser, (req, res) => {
   return res.status(200).json({

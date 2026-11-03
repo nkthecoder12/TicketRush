@@ -16,6 +16,32 @@ router.get("/:id", getEventById);
 // Update an event
 router.patch("/:id", authenticateUser, updateEvent);
 
-router.get("/:eventId/seats",getSeatMap);
+
+/**
+ * @swagger
+ * /events/{eventId}/seats:
+ *   get:
+ *     summary: Get event seat map
+ *     description: Retrieve seats associated with an event.
+ *     tags:
+ *       - Events
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Event ID
+ *     responses:
+ *       200:
+ *         description: Seat map retrieved successfully
+ *       400:
+ *         description: Invalid event ID
+ *       404:
+ *         description: Event not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/:eventId/seats", getSeatMap);
 
 export default router
