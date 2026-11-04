@@ -2,7 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict rQ07LVCqO7TbMcTderDrhG5reshQScvws4eZMhKe5ZiG4ijxJqRunkbU5hL7gUO
 
 -- Dumped from database version 18.6
 -- Dumped by pg_dump version 18.6
@@ -432,5 +431,4 @@ ALTER TABLE ONLY public.seats
 -- PostgreSQL database dump complete
 --
 
-\unrestrict rQ07LVCqO7TbMcTderDrhG5reshQScvws4eZMhKe5ZiG4ijxJqRunkbU5hL7gUO
 

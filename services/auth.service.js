@@ -4,47 +4,46 @@ import {createAccessToken,createRefreshToken} from "../utils/jwt.js"
 import jwt from "jsonwebtoken"
 import createError from "../utils/error.js"
 
-export const loginService =async (email,password) => {
-   
-    const result=await pool.query(
-        "select id,name,email,password_hash from users where email=$1",
-        [email.trim().toLowerCase()]
-    ) 
+export const loginService = async (email, password) => {
+  if (!email || !password) {
+    throw createError("Email and password are required", 400);
+  }
 
-    const userData=result.rows[0];
+  const normalizedEmail = email.trim().toLowerCase();
 
-    if (!userData) {
-        throw createError("Invalid email or password", 401);
-    }
+  const result = await pool.query(
+    `SELECT id, name, email, password_hash
+     FROM users
+     WHERE email = $1`,
+    [normalizedEmail]
+  );
 
-    const password_hash=userData.password_hash;
+  const userData = result.rows[0];
 
-    const comparePass= await bcrypt.compare(password,password_hash);
+  if (!userData) {
+    throw createError("Invalid email or password", 401);
+  }
 
-    if(!comparePass){
-        throw createError("Invalid email or password", 401);
-    }
+  const comparePass = await bcrypt.compare(
+    password,
+    userData.password_hash
+  );
 
-    const accessToken=createAccessToken(userData.id);
-    const refreshToken=createRefreshToken(userData.id);
-    const data={
-        id:userData.id,
-        name:userData.name,
-        email:userData.email,
-        accessToken:accessToken,
-        refreshToken:refreshToken
-    }
+  if (!comparePass) {
+    throw createError("Invalid email or password", 401);
+  }
 
-  return data;
+  const accessToken = createAccessToken(userData.id);
+  const refreshToken = createRefreshToken(userData.id);
 
-
-   
-
-
-
-
-}
-
+  return {
+    id: userData.id,
+    name: userData.name,
+    email: userData.email,
+    accessToken,
+    refreshToken,
+  };
+};
 
 
 export const registerService = async (name, email, password) => {

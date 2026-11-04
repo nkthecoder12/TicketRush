@@ -3,10 +3,7 @@ import swaggerJsdoc from "swagger-jsdoc";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const routesPath = path
-  .join(fileURLToPath(new URL("../routes/", import.meta.url)), "**", "*.js")
-  .split(path.sep)
-  .join("/");
+
 
 const options = {
   definition: {
@@ -25,7 +22,7 @@ const options = {
     ],
   },
 
-  apis: [routesPath],
+  apis: ["C:/TicketRush/routes/**/*.js"]
 };
 
 const swaggerSpec = swaggerJsdoc(options);

@@ -8,7 +8,8 @@ import "dotenv/config";
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-})pool.on("error", (error)=>{
+})
+pool.on("error", (error)=>{
      console.error("Unexpected PostgreSQL error:", error.message);
 })
 
