@@ -303,6 +303,7 @@ export const createSeatHoldService = async (
     if (unavailableSeat) {
       throw createError("One or more seats are already booked", 409);
     }
+
     await client.query(
       `UPDATE event_seats
        SET status = $1
@@ -376,3 +377,38 @@ export const createSeatHoldService = async (
     client.release();
   }
 };
+
+
+
+export const generateSeats=async (section,price,eventId) => {
+  
+  const query=`select venue_id,status from events where id=$1`;
+
+  const result=await pool.query(query,eventId);
+
+  if(result.rows[0].length===0){
+    throw createError("event not found",404);
+  }
+  if(result.rows[0].status!=='DRAFT'){
+    throw createError("Event already Published",409)
+  }
+
+  const venue_id=result.rows[0].venue_id;
+
+  const venueData=await pool.query(`
+    select * from venue where id=$1`,venue_id);
+
+    const venueSections=venueData.rows.section;
+
+    if(!venueSections.includes(section)){
+      throw createError("invalid Section",400);
+    }
+    
+
+
+  
+
+
+
+
+}
