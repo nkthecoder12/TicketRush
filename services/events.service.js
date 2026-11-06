@@ -380,13 +380,13 @@ export const createSeatHoldService = async (
 
 
 
-export const generateSeats=async (section,price,eventId) => {
+export const generateSeats=async (data,eventId) => {
   
   const query=`select venue_id,status from events where id=$1`;
 
-  const result=await pool.query(query,eventId);
+  const result=await pool.query(query,[eventId]);
 
-  if(result.rows[0].length===0){
+  if(result.rows.length===0){
     throw createError("event not found",404);
   }
   if(result.rows[0].status!=='DRAFT'){
@@ -395,15 +395,55 @@ export const generateSeats=async (section,price,eventId) => {
 
   const venue_id=result.rows[0].venue_id;
 
-  const venueData=await pool.query(`
-    select * from venue where id=$1`,venue_id);
+  const existingSectionData=await pool.query(`
+    select distinct section from seats where venue_id=$1`,[venue_id]);
 
-    const venueSections=venueData.rows.section;
+    const sections=existingSectionData.rows.map(
+      (row)=>row.section
+    )
 
-    if(!venueSections.includes(section)){
-      throw createError("invalid Section",400);
+     const sectionSet=new Set(sections)
+   for(const sectionData of data){
+    if(!sectionSet.has(sectionData.section)){
+      throw createError("Wrong Sections",400);
     }
+
+
+   }
+
+   const values=[]
+   const params=[]
+
+   data.forEach((section,index)=>{
+    const par1=index*2+4;
+    const par2=index*2+5;
+
+   values.push(`($${par1}, $${par2})`);
+   params.push(section.section,section.price)
+
+
+
+   })
+
+
+   
+
+
+   const insertQuery=`
+   insert into event_seats(event_id,seat_id,price,status)
+   select $1,s.id,ps.price,$2
+   from seats s 
+   join(values ${values.join(", ")}) as ps(section,price)  on ps.section=s.section
+   where venue_id=$3
+   returning *
+   `
+   
+   const generateSeatQuery=await pool.query(insertQuery,[eventId,'available',venue_id,...params])
+
     
+
+    
+    return generateSeatQuery.rows;
 
 
   
