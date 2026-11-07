@@ -409,6 +409,7 @@ export const generateSeats=async (data,eventId) => {
     }
 
 
+    
    }
 
    const values=[]
