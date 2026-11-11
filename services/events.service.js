@@ -222,6 +222,7 @@ export const createSeatHoldService = async (
     throw createError("Select at least one seat");
   }
 
+
   if (new Set(eventSeatIds.map(String)).size !== eventSeatIds.length) {
     throw createError("Duplicate seat IDs are not allowed");
   }
@@ -279,10 +280,12 @@ export const createSeatHoldService = async (
         return existing.response_body;
       }
 
+
       throw createError("Request is still processing; retry shortly", 409);
     }
 
-    const seatsResult = await client.query(
+
+    const oldSeatsResult = await client.query(
       `SELECT id, event_id, status
        FROM event_seats
        WHERE event_id = $1
@@ -292,29 +295,12 @@ export const createSeatHoldService = async (
       [eventId, normalizedSeatIds]
     );
 
-    if (seatsResult.rows.length !== normalizedSeatIds.length) {
+
+    if (oldSeatsResult.rows.length !== normalizedSeatIds.length) {
       throw createError("One or more seats do not belong to this event", 404);
     }
 
-    const unavailableSeat = seatsResult.rows.find(
-      (seat) => seat.status !== SEAT_STATUS.AVAILABLE,
-    );
-
-    if (unavailableSeat) {
-      throw createError("One or more seats are already booked", 409);
-    }
-
-    await client.query(
-      `UPDATE event_seats
-       SET status = $1
-       WHERE event_id = $2
-         AND id = ANY($3::bigint[])`,
-      [SEAT_STATUS.HELD, eventId, normalizedSeatIds],
-    );
-
-    // 5. Expire old holds so they no longer block these seats
-
-    await client.query(
+       await client.query(
       `UPDATE seat_holds
        SET status = $1
        WHERE event_seat_id = ANY($2::bigint[])
@@ -323,23 +309,78 @@ export const createSeatHoldService = async (
       [HOLD_STATUS.EXPIRED, normalizedSeatIds, HOLD_STATUS.ACTIVE],
     );
 
+     await client.query(
+      `UPDATE event_seats es
+      SET status=$1
+      WHERE es.id=ANY($2 :: bigint[]) AND es.event_id=$3 AND es.status=$4  AND NOT EXISTs(
+      SELECT 1 FROM seat_holds sh WHERE sh.event_seat_id=es.id AND sh.status=$5 AND sh.expires_at > NOW()
+      
+      )`,
+
+      [SEAT_STATUS.AVAILABLE,normalizedSeatIds,eventId,SEAT_STATUS.HELD,HOLD_STATUS.ACTIVE]
+     )
+
+  
+   const seatsResult = await client.query(
+      `SELECT id, event_id, status
+       FROM event_seats
+       WHERE event_id = $1
+         AND id = ANY($2::bigint[])
+       ORDER BY id
+       FOR UPDATE`,
+      [eventId, normalizedSeatIds]
+    );   
+ 
+    const unavailableSeat = seatsResult.rows.find(
+      (seat) => seat.status !== SEAT_STATUS.AVAILABLE,
+    );
+
+    if (unavailableSeat) {
+      throw createError("One or more seats are already booked", 409);
+    }
+
+const updateResult = await client.query(
+  `UPDATE event_seats
+   SET status = $1
+   WHERE event_id = $2
+     AND id = ANY($3::bigint[])
+     AND status = $4`,
+  [
+    SEAT_STATUS.HELD,
+    eventId,
+    normalizedSeatIds,
+    SEAT_STATUS.AVAILABLE
+  ],
+);
+
+if (updateResult.rowCount !== normalizedSeatIds.length) {
+  throw createError("Unable to hold all seats", 409);
+}
+
     // 6. Create all holds with a shared 15-minute expiration
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+   
     const holds = [];
 
        const holdGroupId = randomUUID(); 
+ const expiryResult = await client.query(
+  `SELECT NOW() + INTERVAL '15 minutes' AS expires_at`
+);
 
+const expiresAt = expiryResult.rows[0].expires_at;
     for (const eventSeatId of normalizedSeatIds) {
       const holdResult = await client.query(
         `INSERT INTO seat_holds
           (user_id, event_seat_id, status, hold_group_id, expires_at)
-         VALUES ($1, $2, $3,$4 $5)
+         VALUES ($1, $2, $3,$4,$5)
          RETURNING *`,
-        [userId, eventSeatId, HOLD_STATUS.ACTIVE,holdGroupId, expiresAt],
+        [userId, eventSeatId, HOLD_STATUS.ACTIVE,holdGroupId,expiresAt ]
       );
 
       holds.push(holdResult.rows[0]);
     }
+   
+     
+
 
     // 7. Save the response for future idempotent retries
     const responseBody = {
