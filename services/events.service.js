@@ -283,7 +283,7 @@ export const createSeatHoldService = async (
 
       throw createError("Request is still processing; retry shortly", 409);
     }
-
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     const oldSeatsResult = await client.query(
       `SELECT id, event_id, status
@@ -327,7 +327,7 @@ export const createSeatHoldService = async (
        WHERE event_id = $1
          AND id = ANY($2::bigint[])
        ORDER BY id
-       FOR UPDATE`,
+       `,
       [eventId, normalizedSeatIds]
     );   
  
