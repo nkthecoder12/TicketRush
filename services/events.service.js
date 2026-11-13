@@ -217,6 +217,7 @@ export const createSeatHoldService = async (
   eventSeatIds,
   idempotencyKey,
 ) => {
+
   // 1. Validate input
   if (!Array.isArray(eventSeatIds) || eventSeatIds.length === 0) {
     throw createError("Select at least one seat");
@@ -312,7 +313,7 @@ export const createSeatHoldService = async (
      await client.query(
       `UPDATE event_seats es
       SET status=$1
-      WHERE es.id=ANY($2 :: bigint[]) AND es.event_id=$3 AND es.status=$4  AND NOT EXISTs(
+      WHERE es.id=ANY($2 :: bigint[]) AND es.event_id=$3 AND es.status=$4  AND NOT EXISTS(
       SELECT 1 FROM seat_holds sh WHERE sh.event_seat_id=es.id AND sh.status=$5 AND sh.expires_at > NOW()
       
       )`,
@@ -379,14 +380,17 @@ const expiresAt = expiryResult.rows[0].expires_at;
       holds.push(holdResult.rows[0]);
     }
    
-     
+     const normalizedHolds=holds.map((holds)=>({
+      ...holds,
+      expires_at:new Date(holds.expires_at).toISOString()
+     }))
 
 
     // 7. Save the response for future idempotent retries
     const responseBody = {
       message: "Seats held successfully",
       expiresAt: expiresAt.toISOString(),
-      holds,
+      normalizedHolds,
     };
 
     await client.query(
@@ -494,3 +498,16 @@ export const generateSeats=async (data,eventId) => {
 
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

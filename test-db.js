@@ -1,1 +1,3 @@
-console.log("hi")
+import {Pool} from "pg";
+
+console.log(Pool)

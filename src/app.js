@@ -7,7 +7,8 @@ import { authenticateUser } from "../middleware/authMiddleware.js";
 import { errorMiddleware } from "../middleware/errorMiddleware.js";
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "../config/swagger.js";
-import "dotenv/config"; 
+import "dotenv/config";
+import "../jobs/expirationRelease.js"; 
 
 const app = express();
 
