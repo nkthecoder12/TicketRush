@@ -1,5 +1,7 @@
 -- 0002: group multi-seat holds, link bookings to seats/holds, add missing indexes.
 
+SET search_path TO public;
+
 -- 1) hold_group_id ties together the per-seat rows that belong to one hold request.
 ALTER TABLE seat_holds ADD COLUMN hold_group_id uuid;
 UPDATE seat_holds SET hold_group_id = gen_random_uuid() WHERE hold_group_id IS NULL;

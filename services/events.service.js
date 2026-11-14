@@ -380,10 +380,11 @@ const expiresAt = expiryResult.rows[0].expires_at;
       holds.push(holdResult.rows[0]);
     }
    
-     const normalizedHolds=holds.map((holds)=>({
-      ...holds,
-      expires_at:new Date(holds.expires_at).toISOString()
-     }))
+    const normalizedHolds = holds.map((hold) => ({
+      ...hold,
+      created_at: new Date(hold.created_at).toISOString(),
+      expires_at: new Date(hold.expires_at).toISOString(),
+    }));
 
 
     // 7. Save the response for future idempotent retries
@@ -498,7 +499,6 @@ export const generateSeats=async (data,eventId) => {
 
 
 }
-
 
 
 
