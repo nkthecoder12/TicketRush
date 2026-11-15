@@ -316,6 +316,7 @@ describe("createSeatHoldService", () => {
     );
     expect(holdResult.rows[0].count).toBe(1);
   });
+  
   test("releases an expired seat hold so another user can hold the seat", async () => {
   const seatId = seatIds[0];
 
