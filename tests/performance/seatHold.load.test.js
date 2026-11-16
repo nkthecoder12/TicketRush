@@ -342,6 +342,7 @@ test("holds one seat per ten concurrent requests without double booking", async 
         request.idempotencyKey,
       ]),
     );
+    
     const idempotencyProblems = [];
 
     for (const request of requests) {
